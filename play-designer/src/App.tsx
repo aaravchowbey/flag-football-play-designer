@@ -30,7 +30,6 @@ const ELT = {
 const ARROW_STYLE = {
   SOLID: "solid",
   DASHED: "dashed",
-  CURVED: "curved",
 };
 
 const DEFAULT_PLAY_SIZE = { w: 600, h: 800 };
@@ -38,6 +37,8 @@ const DEFAULT_PLAY_SIZE = { w: 600, h: 800 };
 const FIELD_MARGIN_VERTICAL = 40;
 const FIELD_MARGIN_HORIZONTAL = 40;
 const DEFAULT_DIVISIONS = 20; // the number of yard-line gaps by default
+const DEFAULT_FIELD_WIDTH = 30; // default width in yards (across)
+const DEFAULT_LOS = 5; // default line of scrimmage
 const DEFAULT_UNIT_PX = (DEFAULT_PLAY_SIZE.h - FIELD_MARGIN_VERTICAL * 2) / DEFAULT_DIVISIONS; // px per yard-unit
 
 function computeFieldSize(widthYards: number, lengthYards: number) {
@@ -97,13 +98,13 @@ function yardLines(w: number, h: number, los?: number | null, divisions: number 
 
 // Core models
 function newPlay(name = "New Play") {
-  const defaultWidth = 12;
+  const defaultWidth = DEFAULT_FIELD_WIDTH;
   const defaultLength = DEFAULT_DIVISIONS;
   return {
     id: uid(),
     name,
     size: computeFieldSize(defaultWidth, defaultLength),
-    lineOfScrimmage: null,
+    lineOfScrimmage: DEFAULT_LOS,
     fieldWidthYards: defaultWidth, // default width in yards (across)
     fieldLengthYards: defaultLength, // default length in yards (down the field)
     elements: [],
@@ -111,7 +112,7 @@ function newPlay(name = "New Play") {
 }
 
 function defaultPalette() {
-  return ["#111827", "#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#0ea5e9"]; // neutral + team colors
+  return ["#111827", "#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#c0c0c0"]; // neutral + team colors
 }
 
 // ------------------------------------------------------------
@@ -125,7 +126,7 @@ function Player({ elt, selected, onMouseDown, defaultSize = 16 }: any) {
       <text x={elt.x} y={elt.y + 5} textAnchor="middle" fontSize={12} fill="#ffffff" fontWeight={700} pointerEvents="none">
         {elt.label || ""}
       </text>
-      {selected ? <circle cx={elt.x} cy={elt.y} r={r + 4} fill="none" stroke="#0ea5e9" strokeWidth={2} /> : null}
+  {selected ? <circle cx={elt.x} cy={elt.y} r={r + 4} fill="none" stroke="#c0c0c0" strokeWidth={2} /> : null}
     </g>
   );
 }
@@ -156,7 +157,7 @@ function Ball({ elt, selected, onMouseDown }: any) {
           />
         ))}
       </g>
-      {selected ? <circle cx={elt.x} cy={elt.y} r={r + 6} fill="none" stroke="#0ea5e9" strokeWidth={2} /> : null}
+  {selected ? <circle cx={elt.x} cy={elt.y} r={r + 6} fill="none" stroke="#c0c0c0" strokeWidth={2} /> : null}
     </g>
   );
 }
@@ -165,21 +166,7 @@ function Arrow({ elt, selected, onMouseDown }: any) {
   const { x1, y1, x2, y2, color = "#111827", style = ARROW_STYLE.SOLID, thickness = 3 } = elt;
   const head = 6; // constant arrowhead size in px
   let path = `M ${x1} ${y1} L ${x2} ${y2}`;
-    if (style === ARROW_STYLE.CURVED) {
-    const mx = (x1 + x2) / 2;
-    const my = (y1 + y2) / 2;
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const dist = Math.hypot(dx, dy) || 1;
-    // perpendicular (normal) vector
-    const nx = -dy / dist;
-    const ny = dx / dist;
-    const base = Math.min(0.5, 0.25 * (dist / 100)); // scale curvature with distance but clamp
-    const curvature = typeof elt.curvature === "number" ? elt.curvature : base;
-    const cx = mx + nx * dist * curvature;
-    const cy = my + ny * dist * curvature;
-    path = `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`;
-  }
+    // curved style removed; always use straight path
   return (
     <g onMouseDown={(e) => onMouseDown(e, elt)} style={{ cursor: "move" }}>
       <defs>
@@ -190,8 +177,8 @@ function Arrow({ elt, selected, onMouseDown }: any) {
       <path d={path} stroke={color} strokeWidth={thickness} fill="none" markerEnd={`url(#head-${elt.id})`} strokeDasharray={style === ARROW_STYLE.DASHED ? "8 6" : undefined} />
       {selected ? (
         <>
-          <circle cx={x1} cy={y1} r={6} fill="#0ea5e9" />
-          <circle cx={x2} cy={y2} r={6} fill="#0ea5e9" />
+          <circle cx={x1} cy={y1} r={6} fill="#c0c0c0" />
+          <circle cx={x2} cy={y2} r={6} fill="#c0c0c0" />
         </>
       ) : null}
     </g>
@@ -202,11 +189,11 @@ function Line({ elt, selected, onMouseDown }: any) {
   const { x1, y1, x2, y2, color = "#111827", thickness = 3 } = elt;
   return (
     <g onMouseDown={(e) => onMouseDown(e, elt)} style={{ cursor: "move" }}>
-      <path d={`M ${x1} ${y1} L ${x2} ${y2}`} stroke={color} strokeWidth={thickness} fill="none" strokeLinecap="round" />
+      <path d={`M ${x1} ${y1} L ${x2} ${y2}`} stroke={color} strokeWidth={thickness} fill="none" strokeLinecap="round" strokeDasharray={elt.style === ARROW_STYLE.DASHED ? "8 6" : undefined} />
       {selected ? (
         <>
-          <circle cx={x1} cy={y1} r={6} fill="#0ea5e9" />
-          <circle cx={x2} cy={y2} r={6} fill="#0ea5e9" />
+          <circle cx={x1} cy={y1} r={6} fill="#c0c0c0" />
+          <circle cx={x2} cy={y2} r={6} fill="#c0c0c0" />
         </>
       ) : null}
     </g>
@@ -231,12 +218,12 @@ function PerpLine({ elt, selected, onMouseDown }: any) {
 
   return (
     <g onMouseDown={(e) => onMouseDown(e, elt)} style={{ cursor: "move" }}>
-      <path d={`M ${x1} ${y1} L ${x2} ${y2}`} stroke={color} strokeWidth={thickness} fill="none" strokeLinecap="round" />
-      <path d={`M ${tx} ${ty} L ${tx2} ${ty2}`} stroke={color} strokeWidth={Math.max(1, Math.round(thickness))} strokeLinecap="round" />
+      <path d={`M ${x1} ${y1} L ${x2} ${y2}`} stroke={color} strokeWidth={thickness} fill="none" strokeLinecap="round" strokeDasharray={elt.style === ARROW_STYLE.DASHED ? "8 6" : undefined} />
+      <path d={`M ${tx} ${ty} L ${tx2} ${ty2}`} stroke={color} strokeWidth={Math.max(1, Math.round(thickness))} strokeLinecap="round" strokeDasharray={elt.style === ARROW_STYLE.DASHED ? "8 6" : undefined} />
       {selected ? (
         <>
-          <circle cx={x1} cy={y1} r={6} fill="#0ea5e9" />
-          <circle cx={x2} cy={y2} r={6} fill="#0ea5e9" />
+          <circle cx={x1} cy={y1} r={6} fill="#c0c0c0" />
+          <circle cx={x2} cy={y2} r={6} fill="#c0c0c0" />
         </>
       ) : null}
     </g>
@@ -248,7 +235,7 @@ function Rect({ elt, selected, onMouseDown }: any) {
   return (
     <g onMouseDown={(e) => onMouseDown(e, elt)} style={{ cursor: "move" }}>
       <rect x={x} y={y} width={w} height={h} fill="none" stroke={color} strokeWidth={2} />
-      {selected ? <rect x={x - 4} y={y - 4} width={w + 8} height={h + 8} fill="none" stroke="#0ea5e9" strokeWidth={2} /> : null}
+  {selected ? <rect x={x - 4} y={y - 4} width={w + 8} height={h + 8} fill="none" stroke="#c0c0c0" strokeWidth={2} /> : null}
     </g>
   );
 }
@@ -258,7 +245,7 @@ function Zone({ elt, selected, onMouseDown }: any) {
   return (
     <g onMouseDown={(e) => onMouseDown(e, elt)} style={{ cursor: "move" }}>
       <rect x={x} y={y} width={w} height={h} fill={color} opacity={0.12} stroke={color} strokeWidth={1.5} />
-      {selected ? <rect x={x - 4} y={y - 4} width={w + 8} height={h + 8} fill="none" stroke="#0ea5e9" strokeWidth={2} /> : null}
+  {selected ? <rect x={x - 4} y={y - 4} width={w + 8} height={h + 8} fill="none" stroke="#c0c0c0" strokeWidth={2} /> : null}
     </g>
   );
 }
@@ -270,7 +257,8 @@ function PlayCanvas({ play, onChange, selection, setSelection, tool, strokeColor
   const svgRef = useRef<SVGSVGElement>(null);
   const [drag, setDrag] = useState<any>(null); // { id, offsetX, offsetY, kind }
   const [draft, setDraft] = useState<any>(null); // for drawing arrows and shapes
-  const widthUnits = Math.max(1, fieldWidthYards ?? play.fieldWidthYards ?? 12);
+  const [snapCandidate, setSnapCandidate] = useState<{ x: number; y: number } | null>(null);
+  const widthUnits = Math.max(1, fieldWidthYards ?? play.fieldWidthYards ?? DEFAULT_FIELD_WIDTH);
   const divisions = Math.max(1, Math.round(fieldLengthYards ?? play.fieldLengthYards ?? DEFAULT_DIVISIONS));
   const size = computeFieldSize(widthUnits, divisions);
   const SNAP_RADIUS = 18;
@@ -307,12 +295,20 @@ function PlayCanvas({ play, onChange, selection, setSelection, tool, strokeColor
     let nearest: { x: number; y: number } | null = null;
     let minDist = SNAP_RADIUS;
     for (const el of play.elements) {
-      if (el.type !== ELT.ARROW && el.type !== ELT.LINE && el.type !== ELT.PERP_LINE) continue;
-      const pts = [
-        { x: el.x1, y: el.y1 },
-        { x: el.x2, y: el.y2 },
-      ];
+      // When players are locked, allow snapping to player centers as well so
+      // newly created arrows/lines/perp can attach to players.
+      const pts: Array<{ x: number; y: number } | null> = [];
+      if (playersLocked && el.type === ELT.PLAYER) {
+        pts.push({ x: el.x, y: el.y });
+      }
+      if (el.type === ELT.ARROW || el.type === ELT.LINE || el.type === ELT.PERP_LINE) {
+        pts.push({ x: el.x1, y: el.y1 });
+        pts.push({ x: el.x2, y: el.y2 });
+      }
+      // skip elements that don't provide any snap points
+      if (pts.length === 0) continue;
       for (const pt of pts) {
+        if (!pt) continue;
         if (exclude && Math.hypot(pt.x - exclude.x, pt.y - exclude.y) < 0.5) continue;
         const dist = Math.hypot(pt.x - x, pt.y - y);
         if (dist < minDist) {
@@ -329,6 +325,11 @@ function PlayCanvas({ play, onChange, selection, setSelection, tool, strokeColor
   if (!p) return;
   const x = p.x;
   const y = p.y;
+  // compute snap candidate on down for immediate feedback
+  if (playersLocked) {
+    const s = findSnapPoint(x, y);
+    setSnapCandidate(s);
+  }
 
     if (tool === ELT.PLAYER) {
       const snappedY = snapToYardLine(y);
@@ -343,21 +344,21 @@ function PlayCanvas({ play, onChange, selection, setSelection, tool, strokeColor
       const snap = findSnapPoint(x, y);
       const sx = snap?.x ?? x;
       const sy = snap?.y ?? y;
-      setDraft({ type: ELT.ARROW, x1: sx, y1: sy, x2: sx, y2: sy, color: strokeColor, style: ARROW_STYLE.SOLID, thickness, curvature: 0 });
+  setDraft({ type: ELT.ARROW, x1: sx, y1: sy, x2: sx, y2: sy, color: strokeColor, style: ARROW_STYLE.SOLID, thickness });
       return;
     }
     if (tool === ELT.LINE) {
       const snap = findSnapPoint(x, y);
       const sx = snap?.x ?? x;
       const sy = snap?.y ?? y;
-      setDraft({ type: ELT.LINE, x1: sx, y1: sy, x2: sx, y2: sy, color: strokeColor, thickness });
+      setDraft({ type: ELT.LINE, x1: sx, y1: sy, x2: sx, y2: sy, color: strokeColor, thickness, style: ARROW_STYLE.SOLID });
       return;
     }
     if (tool === ELT.PERP_LINE) {
       const snap = findSnapPoint(x, y);
       const sx = snap?.x ?? x;
       const sy = snap?.y ?? y;
-      setDraft({ type: ELT.PERP_LINE, x1: sx, y1: sy, x2: sx, y2: sy, color: strokeColor, thickness, tick: 12 });
+      setDraft({ type: ELT.PERP_LINE, x1: sx, y1: sy, x2: sx, y2: sy, color: strokeColor, thickness, tick: 12, style: ARROW_STYLE.SOLID });
       return;
     }
     // curved arrows disabled for now
@@ -371,11 +372,23 @@ function PlayCanvas({ play, onChange, selection, setSelection, tool, strokeColor
   }
 
   function onSVGMove(e: any) {
+    const p = clientToSvg(e);
+    if (!p) return;
+    const x = p.x;
+    const y = p.y;
+
+    // Always compute snap candidate when appropriate so we can show a visual
+    // indicator while hovering near a player or endpoint. This runs even when
+    // not actively drafting or dragging.
+    const isDrawingTool = tool === ELT.ARROW || tool === ELT.LINE || tool === ELT.PERP_LINE || tool === ELT.RECT || tool === ELT.ZONE;
+    if (playersLocked && isDrawingTool) {
+      const s = findSnapPoint(x, y);
+      setSnapCandidate(s);
+    } else {
+      setSnapCandidate(null);
+    }
+
     if (!draft && !drag) return;
-  const p = clientToSvg(e);
-  if (!p) return;
-  const x = p.x;
-  const y = p.y;
 
     if (draft) {
       if (draft.type === ELT.ARROW || draft.type === ELT.LINE || draft.type === ELT.PERP_LINE) {
@@ -428,15 +441,25 @@ function PlayCanvas({ play, onChange, selection, setSelection, tool, strokeColor
       setDraft(null);
     }
     setDrag(null);
+    setSnapCandidate(null);
   }
 
   function onEltMouseDown(e: any, elt: any) {
+    // If players are locked and the user is using a drawing tool, allow clicks on player
+    // circles to bubble up so the SVG's onMouseDown can start a draft anchored to the
+    // player center (and snap to it). Otherwise, stop propagation and start selection/drag.
+    const isDrawingTool = tool === ELT.ARROW || tool === ELT.LINE || tool === ELT.PERP_LINE || tool === ELT.RECT || tool === ELT.ZONE;
+    if (playersLocked && isDrawingTool && elt.type === ELT.PLAYER) {
+      // Let the event bubble so onSVGDown can call findSnapPoint and snap to this player.
+      return;
+    }
+
     e.stopPropagation();
     setSelection(elt.id);
-  const p = clientToSvg(e);
-  if (!p) return;
-  const x = p.x;
-  const y = p.y;
+    const p = clientToSvg(e);
+    if (!p) return;
+    const x = p.x;
+    const y = p.y;
     if (elt.type === ELT.PLAYER || elt.type === ELT.BALL || elt.type === ELT.RECT || elt.type === ELT.ZONE) {
       // If players are locked, don't start dragging player elements — this makes it easier to place arrows
       if (elt.type === ELT.PLAYER && playersLocked) return;
@@ -494,6 +517,12 @@ function PlayCanvas({ play, onChange, selection, setSelection, tool, strokeColor
             <Zone elt={{ id: "draft", ...draft }} selected={true} onMouseDown={() => {}} />
           )
         ) : null}
+        {snapCandidate ? (
+          <g pointerEvents="none">
+            <circle cx={snapCandidate.x} cy={snapCandidate.y} r={18} fill="none" stroke="#c0c0c0" strokeWidth={2} opacity={0.45} />
+            <circle cx={snapCandidate.x} cy={snapCandidate.y} r={4} fill="#c0c0c0" />
+          </g>
+        ) : null}
       </svg>
     </div>
   );
@@ -534,7 +563,7 @@ function Toolbar({
   setPlayersLocked,
 }: any) {
   const safeLength = Math.max(1, Math.round(fieldLengthYards ?? DEFAULT_DIVISIONS));
-  const safeWidth = Math.max(1, Math.round(fieldWidthYards ?? 12));
+  const safeWidth = Math.max(1, Math.round(fieldWidthYards ?? DEFAULT_FIELD_WIDTH));
   const showStrokeColor = tool === ELT.ARROW || tool === ELT.LINE || tool === ELT.PERP_LINE || tool === ELT.RECT;
   const showFillColor = tool === ELT.PLAYER || tool === ELT.BALL || tool === ELT.ZONE;
   const showThickness = tool === ELT.ARROW || tool === ELT.LINE || tool === ELT.PERP_LINE;
@@ -737,7 +766,7 @@ function BoardView({ plays, setPlays, printCfg, setPrintCfg }) {
 }
 
 function PlayThumb({ play }) {
-  const widthUnits = Math.max(1, play.fieldWidthYards ?? 12);
+  const widthUnits = Math.max(1, play.fieldWidthYards ?? DEFAULT_FIELD_WIDTH);
   const divisions = Math.max(1, Math.round(play.fieldLengthYards ?? DEFAULT_DIVISIONS));
   const size = computeFieldSize(widthUnits, divisions);
   return (
@@ -787,20 +816,7 @@ function PlayThumb({ play }) {
         }
         if (elt.type === ELT.ARROW) {
           let path = `M ${elt.x1} ${elt.y1} L ${elt.x2} ${elt.y2}`;
-          if (elt.style === ARROW_STYLE.CURVED) {
-            const mx = (elt.x1 + elt.x2) / 2;
-            const my = (elt.y1 + elt.y2) / 2;
-            const dx = elt.x2 - elt.x1;
-            const dy = elt.y2 - elt.y1;
-            const dist = Math.hypot(dx, dy) || 1;
-            const nx = -dy / dist;
-            const ny = dx / dist;
-            const base = Math.min(0.5, 0.25 * (dist / 100));
-            const curvature = typeof elt.curvature === "number" ? elt.curvature : base;
-            const cx = mx + nx * dist * curvature;
-            const cy = my + ny * dist * curvature;
-            path = `M ${elt.x1} ${elt.y1} Q ${cx} ${cy} ${elt.x2} ${elt.y2}`;
-          }
+          // Curved arrows removed; use straight paths only
           const head = 6;
           return (
             <g key={elt.id}>
@@ -830,11 +846,11 @@ function loadFromStorage() {
     const data = JSON.parse(raw);
     if (!Array.isArray(data)) return null;
     return data.map((p: any) => {
-      const widthYards = Math.max(1, p?.fieldWidthYards ?? 12);
+  const widthYards = Math.max(1, p?.fieldWidthYards ?? DEFAULT_FIELD_WIDTH);
       const lengthYards = Math.max(1, Math.round(p?.fieldLengthYards ?? DEFAULT_DIVISIONS));
       const size = computeFieldSize(widthYards, lengthYards);
       const los = p?.lineOfScrimmage;
-      const clampedLOS = los === null || los === undefined ? null : Math.min(Math.max(0, Math.round(los)), lengthYards);
+  const clampedLOS = los === null || los === undefined ? DEFAULT_LOS : Math.min(Math.max(0, Math.round(los)), lengthYards);
       return {
         ...p,
         fieldWidthYards: widthYards,
@@ -961,7 +977,7 @@ export default function App() {
 
   function setActiveFieldDims({ widthYards, lengthYards }: { widthYards?: number; lengthYards?: number }) {
     if (!active) return;
-    const nextWidth = Math.max(1, widthYards ?? active.fieldWidthYards ?? 12);
+  const nextWidth = Math.max(1, widthYards ?? active.fieldWidthYards ?? DEFAULT_FIELD_WIDTH);
     const nextLength = Math.max(1, Math.round(lengthYards ?? active.fieldLengthYards ?? DEFAULT_DIVISIONS));
     const nextSize = computeFieldSize(nextWidth, nextLength);
     const los = active.lineOfScrimmage;
@@ -988,7 +1004,7 @@ export default function App() {
       id: uid(),
       name: `${active.name} copy`,
       lineOfScrimmage: active.lineOfScrimmage ?? null,
-      fieldWidthYards: active.fieldWidthYards ?? 12,
+  fieldWidthYards: active.fieldWidthYards ?? DEFAULT_FIELD_WIDTH,
       fieldLengthYards: active.fieldLengthYards ?? DEFAULT_DIVISIONS,
       elements: active.elements.map((e) => ({ ...e, id: uid() })),
     };
@@ -1039,21 +1055,8 @@ export default function App() {
             <div className="relative z-10 flex flex-col gap-6 p-6 md:p-8">
               <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
                 <div className="flex flex-col gap-3 text-left">
-                  <span className="inline-flex w-fit items-center gap-2 rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
-                    Playbook Studio
-                  </span>
                   <h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">Flag Football Play Designer</h1>
-                  <p className="max-w-2xl text-sm text-slate-600 md:text-base">
-                    Map routes, zone drops, and timing adjustments on a clean digital field. Iterate fast with auto-saving, undo/redo, and printable playboards.
-                  </p>
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                    <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 font-medium text-slate-700 shadow-sm">
-                      <Layers size={14} /> Active play: {active?.name ?? "Untitled"}
-                    </span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-white/60 px-3 py-1 font-medium text-slate-600 shadow-sm">
-                      <Sparkles size={14} /> Auto-save enabled
-                    </span>
-                  </div>
+                  <p className="max-w-2xl text-sm text-slate-600 md:text-base">Map routes, zone drops, and timing adjustments on a clean digital field.</p>
                 </div>
                   <div className="flex flex-wrap justify-end gap-2 items-center">
                   <Button size="icon" variant="secondary" title="Undo (Ctrl+Z)" onClick={undo} className="rounded-full">
@@ -1085,7 +1088,7 @@ export default function App() {
                     </div>
                     <div className="inline-flex items-center gap-2">
                       <div className="text-xs text-slate-500">W</div>
-                      <Input type="number" min={1} value={active?.fieldWidthYards ?? 12} onChange={(e)=> setActiveFieldDims({ widthYards: Number(e.target.value) })} className="w-20" />
+                      <Input type="number" min={1} value={active?.fieldWidthYards ?? DEFAULT_FIELD_WIDTH} onChange={(e)=> setActiveFieldDims({ widthYards: Number(e.target.value) })} className="w-20" />
                     </div>
                     <div className="inline-flex items-center gap-2">
                       <div className="text-xs text-slate-500">L</div>
@@ -1158,7 +1161,7 @@ export default function App() {
                   palette={palette}
                   lineOfScrimmage={active?.lineOfScrimmage ?? null}
                   setLineOfScrimmage={setActiveLOS}
-                  fieldWidthYards={active?.fieldWidthYards ?? 12}
+                  fieldWidthYards={active?.fieldWidthYards ?? DEFAULT_FIELD_WIDTH}
                   fieldLengthYards={active?.fieldLengthYards ?? DEFAULT_DIVISIONS}
                   setFieldDims={setActiveFieldDims}
                   playersLocked={playersLocked}
@@ -1261,7 +1264,6 @@ function SelectedInspector({ play, selection, onChange }) {
             <SelectContent>
               <SelectItem value={ARROW_STYLE.SOLID}>Solid</SelectItem>
               <SelectItem value={ARROW_STYLE.DASHED}>Dashed</SelectItem>
-              <SelectItem value={ARROW_STYLE.CURVED}>Curved</SelectItem>
             </SelectContent>
           </Select>
           <div className="text-sm">Color</div>
@@ -1271,22 +1273,23 @@ function SelectedInspector({ play, selection, onChange }) {
           {/* curvature control removed while curved arrows are disabled */}
         </div>
       ) : null}
-      {elt.type === ELT.LINE ? (
+      {(elt.type === ELT.LINE || elt.type === ELT.PERP_LINE) ? (
         <div className="grid grid-cols-2 gap-2 items-center">
+          <div className="text-sm">Style</div>
+          <Select value={elt.style || ARROW_STYLE.SOLID} onValueChange={(v) => patch({ style: v })}>
+            <SelectTrigger><SelectValue/></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ARROW_STYLE.SOLID}>Solid</SelectItem>
+              <SelectItem value={ARROW_STYLE.DASHED}>Dashed</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="text-sm">Color</div>
           <Input type="color" value={elt.color} onChange={(e) => patch({ color: e.target.value })} />
           <div className="text-sm">Thickness</div>
           <Input type="number" min={1} max={10} value={elt.thickness || 3} onChange={(e) => patch({ thickness: Number(e.target.value) })} />
         </div>
       ) : null}
-      {elt.type === ELT.PERP_LINE ? (
-        <div className="grid grid-cols-2 gap-2 items-center">
-          <div className="text-sm">Color</div>
-          <Input type="color" value={elt.color} onChange={(e) => patch({ color: e.target.value })} />
-          <div className="text-sm">Thickness</div>
-          <Input type="number" min={1} max={10} value={elt.thickness || 3} onChange={(e) => patch({ thickness: Number(e.target.value) })} />
-        </div>
-      ) : null}
+      {/* color/thickness moved into the shared style block for LINE and PERP_LINE */}
       {(elt.type === ELT.RECT || elt.type === ELT.ZONE) ? (
         <div className="grid grid-cols-2 gap-2 items-center">
           <div className="text-sm">Color</div>

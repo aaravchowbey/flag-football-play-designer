@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, Download, Upload, Printer, Trash2, Copy, Grid, Circle, ArrowRight, Square, Undo2, Redo2, Layers, Users, Sparkles } from "lucide-react";
+import { Plus, Download, Upload, Printer, Trash2, Copy, Grid, Circle, ArrowRight, Square, Undo2, Redo2, Layers, Sparkles } from "lucide-react";
 
 // ------------------------------------------------------------
 // Minimal, single-file React app: Flag Football Play Designer
@@ -879,16 +879,6 @@ export default function App() {
   // persist
   useEffect(() => saveToStorage(plays), [plays]);
 
-  const totalElements = useMemo(() => plays.reduce((acc, play) => acc + play.elements.length, 0), [plays]);
-  const activePlayerCount = useMemo(
-    () => active?.elements.filter((elt: any) => elt.type === ELT.PLAYER).length ?? 0,
-    [active]
-  );
-  const activeRouteCount = useMemo(
-    () => active?.elements.filter((elt: any) => elt.type === ELT.ARROW).length ?? 0,
-    [active]
-  );
-
   // Undo / Redo history (stores snapshots of plays + active selection)
   const snapshot = (playsState = plays, activeState = activeId) =>
     JSON.parse(JSON.stringify({ plays: playsState, activeId: activeState }));
@@ -1107,32 +1097,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
-                  <div className="flex items-center justify-between text-slate-500">
-                    <span className="text-sm font-medium">Plays saved</span>
-                    <Layers className="h-4 w-4" />
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-slate-900">{plays.length}</div>
-                  <p className="text-xs text-slate-500">Organize variations and game scripts.</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
-                  <div className="flex items-center justify-between text-slate-500">
-                    <span className="text-sm font-medium">Active players</span>
-                    <Users className="h-4 w-4" />
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-slate-900">{activePlayerCount}</div>
-                  <p className="text-xs text-slate-500">Players positioned on the current play.</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
-                  <div className="flex items-center justify-between text-slate-500">
-                    <span className="text-sm font-medium">Routes & zones</span>
-                    <ArrowRight className="h-4 w-4 rotate-45 text-slate-400" />
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-slate-900">{activeRouteCount}</div>
-                  <p className="text-xs text-slate-500">Lines or zones drawn for this design.</p>
-                </div>
-              </div>
+              {/* Summary cards removed per user request */}
             </div>
           </div>
 

@@ -63,6 +63,13 @@ function downloadText(filename: string, text: string) {
   URL.revokeObjectURL(url);
 }
 
+function getPaperSizeIn(cfg: any) {
+  if (!cfg) return { widthIn: 8.5, heightIn: 11 };
+  if (cfg.paper === "a4") return { widthIn: 8.27, heightIn: 11.69 };
+  if (cfg.paper === "custom") return { widthIn: Math.max(1, Number(cfg.customW) || 1), heightIn: Math.max(1, Number(cfg.customH) || 1) };
+  return { widthIn: 8.5, heightIn: 11 };
+}
+
 function yardLines(w: number, h: number, los?: number | null, divisions: number = DEFAULT_DIVISIONS) {
   const lines = [];
   const verticalMargin = FIELD_MARGIN_VERTICAL;
@@ -490,7 +497,7 @@ function PlayCanvas({ play, onChange, selection, setSelection, tool, strokeColor
         onMouseMove={onSVGMove}
         onMouseUp={onSVGUp}
         viewBox={`0 0 ${size.w} ${size.h}`}
-    className="w-full h-[760px] rounded-2xl touch-none select-none"
+        className="play-canvas-svg w-full h-[760px] rounded-2xl touch-none select-none"
       >
   {yardLines(size.w, size.h, play.lineOfScrimmage ?? null, divisions)}
         {play.elements.map((elt) => {
@@ -1045,6 +1052,55 @@ export default function App() {
     reader.readAsText(file);
   }
 
+  function downloadActivePNG() {
+    if (!active) return;
+    const svg = document.querySelector(".play-canvas-svg") as SVGSVGElement | null;
+    if (!svg) return;
+
+    const rect = svg.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    if (!width || !height) return;
+
+    const clone = svg.cloneNode(true) as SVGSVGElement;
+    clone.setAttribute("width", `${width}`);
+    clone.setAttribute("height", `${height}`);
+    const { baseVal } = svg.viewBox;
+    clone.setAttribute("viewBox", `${baseVal.x} ${baseVal.y} ${baseVal.width} ${baseVal.height}`);
+    if (!clone.getAttribute("xmlns")) clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+
+    const serializer = new XMLSerializer();
+    const source = serializer.serializeToString(clone);
+    const svgBlob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.onload = () => {
+      const scale = window.devicePixelRatio || 1;
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.save();
+      ctx.scale(scale, scale);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      ctx.restore();
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${active.name || "play"}.png`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }, "image/png");
+      URL.revokeObjectURL(url);
+    };
+    img.crossOrigin = "anonymous";
+    img.src = url;
+  }
+
   return (
     <TooltipProvider>
       <div className="p-4 md:p-6 bg-slate-50 min-h-screen">
@@ -1067,9 +1123,9 @@ export default function App() {
                   </Button>
                   <Button className="gap-2 rounded-full" onClick={addPlay}><Plus size={16}/>New play</Button>
                   <Button className="gap-2 rounded-full" variant="secondary" onClick={duplicateActive}><Copy size={16}/>Duplicate</Button>
-                  <Button className="gap-2 rounded-full" variant="secondary" onClick={downloadJSON}><Download size={16}/>Export</Button>
+                  <Button className="gap-2 rounded-full" variant="secondary" onClick={downloadJSON}><Upload size={16}/>Export</Button>
                   <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300">
-                    <Upload size={16}/>
+                    <Download size={16}/>
                     <span>Import</span>
                     <input type="file" accept="application/json" className="hidden" onChange={(e)=> e.target.files && uploadJSON(e.target.files[0])}/>
                   </label>
@@ -1119,12 +1175,22 @@ export default function App() {
                   <CardContent className="grid gap-3">
                     <div className="flex items-center gap-2">
                       <Input value={active?.name || ""} onChange={(e)=> updateActive({ ...active, name: e.target.value })} className="max-w-xs" />
-                      <Select value={active?.id} onValueChange={(v)=>setActiveId(v)}>
-                        <SelectTrigger className="w-[220px]"><SelectValue placeholder="Choose play"/></SelectTrigger>
-                        <SelectContent>
-                          {plays.map((p)=> <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <div className="inline-flex items-center gap-2">
+                        <Select value={active?.id} onValueChange={(v)=>setActiveId(v)}>
+                          <SelectTrigger className="w-[220px]"><SelectValue placeholder="Choose play"/></SelectTrigger>
+                          <SelectContent>
+                            {plays.map((p)=> <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Button className="gap-2 rounded-full" variant="secondary" title="Download current play as PNG" onClick={downloadActivePNG}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <polyline points="7 10 12 5 17 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                            <line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          <span>Download Play</span>
+                        </Button>
+                      </div>
                     </div>
                     {active ? (
                       <PlayCanvas

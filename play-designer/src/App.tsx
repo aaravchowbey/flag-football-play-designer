@@ -125,7 +125,7 @@ function defaultPalette() {
 // ------------------------------------------------------------
 // Element Renderers
 // ------------------------------------------------------------
-function Player({ elt, selected, onMouseDown, defaultSize = 16 }: any) {
+function Player({ elt, selected, onMouseDown, defaultSize = 25 }: any) {
   const r = elt.r || defaultSize;
   return (
     <g onMouseDown={(e) => onMouseDown(e, elt)} style={{ cursor: "move" }}>
@@ -272,6 +272,7 @@ function PlayCanvas({ play, onChange, selection, setSelection, tool, strokeColor
   const verticalMargin = FIELD_MARGIN_VERTICAL;
   const fieldH = size.h - verticalMargin * 2;
   const lineSpacing = fieldH / divisions;
+
 
   function snapToYardLine(y: number) {
     if (!Number.isFinite(lineSpacing) || lineSpacing <= 0) return y;
@@ -558,8 +559,7 @@ function Toolbar({
   setFillColor,
   thickness,
   setThickness,
-  playerSize,
-  setPlayerSize,
+  playerSize = 25,
   palette,
   lineOfScrimmage,
   setLineOfScrimmage,
@@ -574,7 +574,7 @@ function Toolbar({
   const showStrokeColor = tool === ELT.ARROW || tool === ELT.LINE || tool === ELT.PERP_LINE || tool === ELT.RECT;
   const showFillColor = tool === ELT.PLAYER || tool === ELT.BALL || tool === ELT.ZONE;
   const showThickness = tool === ELT.ARROW || tool === ELT.LINE || tool === ELT.PERP_LINE;
-  const showPlayerSize = tool === ELT.PLAYER;
+  const showPlayerSize = false; // Player size is fixed at 25px; adjuster removed per user request
 
   function handleWidthChange(e: any) {
     const val = Number(e.target.value);
@@ -680,15 +680,7 @@ function Toolbar({
               </div>
             </div>
           ) : null}
-          {showPlayerSize ? (
-            <div className="space-y-3 rounded-2xl border border-slate-200/70 bg-slate-50/60 p-3">
-              <div className="text-sm font-semibold text-slate-700">Player size</div>
-              <div className="px-2">
-                <Slider value={[playerSize]} onValueChange={(v) => setPlayerSize(v[0])} min={8} max={32} step={1} />
-                <div className="mt-2 text-xs font-medium text-slate-500">Current: {playerSize}px</div>
-              </div>
-            </div>
-          ) : null}
+          {/* Player size is fixed at 25px; adjuster removed per user request */}
                   {/* field dimensions moved to header */}
         </div>
       </CardContent>
@@ -699,7 +691,7 @@ function Toolbar({
 // ------------------------------------------------------------
 // Board Grid + Print Settings
 // ------------------------------------------------------------
-function BoardView({ plays, setPlays, printCfg, setPrintCfg }) {
+function BoardView({ plays, setPlays, printCfg, setPrintCfg, wristCfg, setWristCfg, onPrintWrist }: any) {
   const reorder = (from, to) => {
     const next = [...plays];
     const [m] = next.splice(from, 1);
@@ -707,64 +699,178 @@ function BoardView({ plays, setPlays, printCfg, setPrintCfg }) {
     setPlays(next);
   };
 
-  return (
-    <div className="grid md:grid-cols-3 gap-4">
-  <Card className="md:col-span-1 border-slate-200 bg-white/90 shadow-sm">
-        <CardHeader className="py-3">
-          <CardTitle className="text-base">Print settings</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          <div className="grid grid-cols-2 gap-2 items-center">
-            <div className="text-sm">Paper</div>
-            <Select value={printCfg.paper} onValueChange={(v) => setPrintCfg({ ...printCfg, paper: v })}>
-              <SelectTrigger><SelectValue/></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="letter">US Letter (8.5×11)</SelectItem>
-                <SelectItem value="a4">A4</SelectItem>
-                <SelectItem value="custom">Custom</SelectItem>
-              </SelectContent>
-            </Select>
-            {printCfg.paper === "custom" ? (
-              <div className="col-span-2 grid grid-cols-2 gap-2">
-                <Input type="number" value={printCfg.customW} onChange={(e)=>setPrintCfg({...printCfg, customW: Number(e.target.value)})} placeholder="Width in" />
-                <Input type="number" value={printCfg.customH} onChange={(e)=>setPrintCfg({...printCfg, customH: Number(e.target.value)})} placeholder="Height in" />
-              </div>
-            ) : null}
-            <div className="text-sm">Plays per row</div>
-            <Input type="number" min={1} max={6} value={printCfg.perRow} onChange={(e)=>setPrintCfg({...printCfg, perRow: clamp(Number(e.target.value),1,6)})} />
-            <div className="text-sm">Margins</div>
-            <Input type="number" min={0} max={1.5} step={0.1} value={printCfg.marginIn} onChange={(e)=>setPrintCfg({...printCfg, marginIn: Number(e.target.value)})} />
-            <div className="text-sm">Show titles</div>
-            <Select value={printCfg.showTitles?"yes":"no"} onValueChange={(v)=>setPrintCfg({...printCfg, showTitles: v==="yes"})}>
-              <SelectTrigger><SelectValue/></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="yes">Yes</SelectItem>
-                <SelectItem value="no">No</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <Button className="gap-2" onClick={()=>window.print()}><Printer size={16}/>Print</Button>
-        </CardContent>
-      </Card>
+  const { widthIn: paperWidthIn, heightIn: paperHeightIn } = getPaperSizeIn(printCfg);
+  const pageWidthPx = paperWidthIn * 96;
+  const pageHeightPx = paperHeightIn * 96;
+  const scaleWidth = pageWidthPx ? 360 / pageWidthPx : 1;
+  const scaleHeight = pageHeightPx ? 520 / pageHeightPx : 1;
+  const previewScale = Math.min(1, Number.isFinite(scaleWidth) ? scaleWidth : 1, Number.isFinite(scaleHeight) ? scaleHeight : 1);
 
-  <Card className="md:col-span-2 border-slate-200 bg-white/90 shadow-sm">
-        <CardHeader className="py-3">
-          <CardTitle className="text-base">Arrange plays</CardTitle>
+  const cardWidthIn = Math.max(1, Number(wristCfg?.widthIn) || 1);
+  const cardHeightIn = Math.max(1, Number(wristCfg?.heightIn) || 1);
+
+  const selectedPlays = (wristCfg?.selectedIds ?? [])
+    .map((id: string) => plays.find((p) => p.id === id))
+    .filter(Boolean);
+  const playLimit = Math.max(1, (wristCfg?.playCount ?? selectedPlays.length) || 1);
+  const playsToRender = selectedPlays.slice(0, playLimit);
+  const missingPlays = Math.max(0, playLimit - playsToRender.length);
+  const count = playsToRender.length;
+  const gridCols = count <= 1 ? 1 : count === 2 ? 2 : Math.ceil(Math.sqrt(count));
+  const gridRows = Math.max(1, Math.ceil(Math.max(count, 1) / gridCols));
+
+  const updateWrist = (partial: any) => setWristCfg((cfg: any) => ({ ...cfg, ...partial }));
+
+  const handlePlayCountChange = (e: any) => {
+    const raw = Number(e.target.value);
+    const next = Number.isFinite(raw) ? clamp(Math.round(raw), 1, Math.max(1, plays.length)) : 1;
+    updateWrist({ playCount: next });
+  };
+
+  const togglePlaySelection = (id: string) => {
+    setWristCfg((cfg: any) => {
+      const exists = cfg.selectedIds.includes(id);
+      let nextIds = exists ? cfg.selectedIds.filter((pid) => pid !== id) : [...cfg.selectedIds, id];
+      if (!exists && nextIds.length > cfg.playCount) {
+        nextIds = nextIds.slice(nextIds.length - cfg.playCount);
+      }
+      return { ...cfg, selectedIds: nextIds };
+    });
+  };
+
+  const autofillSelection = () => {
+    setWristCfg((cfg: any) => ({ ...cfg, selectedIds: plays.slice(0, cfg.playCount).map((p) => p.id) }));
+  };
+
+  const previewWrapperStyle: React.CSSProperties = {
+    width: `${paperWidthIn}in`,
+    height: `${paperHeightIn}in`,
+    transform: `scale(${previewScale})`,
+    transformOrigin: "top left",
+  };
+
+  const CARD_PADDING_IN = 12 / 96;
+  const HEADER_STRIP_IN = 0;
+  const BASE_GAP_IN = 0.07;
+  const innerWidthIn = Math.max(cardWidthIn - CARD_PADDING_IN * 2, 0.5);
+  const innerHeightIn = Math.max(cardHeightIn - CARD_PADDING_IN * 2 - HEADER_STRIP_IN, 0.5);
+  const adaptiveGapIn = Math.min(
+    BASE_GAP_IN,
+    innerWidthIn / Math.max(gridCols * 6, 1),
+    innerHeightIn / Math.max(gridRows * 6, 1)
+  );
+  const gapIn = count <= 2 ? adaptiveGapIn : adaptiveGapIn * 0.85;
+  const totalGapWidthIn = Math.max(0, gridCols - 1) * gapIn;
+  const totalGapHeightIn = Math.max(0, gridRows - 1) * gapIn;
+  const cellWidthIn = gridCols > 0 ? Math.max((innerWidthIn - totalGapWidthIn) / gridCols, 0) : innerWidthIn;
+  const cellHeightIn = gridRows > 0 ? Math.max((innerHeightIn - totalGapHeightIn) / gridRows, 0) : innerHeightIn;
+  const gridWidthIn = cellWidthIn * gridCols + totalGapWidthIn;
+  const gridHeightIn = cellHeightIn * gridRows + totalGapHeightIn;
+  const gridStyle: React.CSSProperties = {
+    width: `${gridWidthIn}in`,
+    height: `${gridHeightIn}in`,
+    display: "grid",
+    gridTemplateColumns: `repeat(${gridCols}, ${cellWidthIn}in)`,
+    gridTemplateRows: `repeat(${gridRows}, ${cellHeightIn}in)`,
+    gap: `${gapIn}in`,
+    justifyContent: "center",
+    alignContent: "center",
+  };
+
+  return (
+    <div className="grid gap-4">
+      <Card className="md:col-span-3 border-slate-200 bg-white/90 shadow-sm">
+        <CardHeader className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="text-base">Wrist coach sheet</CardTitle>
+          <Button onClick={onPrintWrist} className="gap-2 rounded-full" variant="secondary">
+            <Printer size={16} />Print wrist insert
+          </Button>
         </CardHeader>
-        <CardContent>
-          <div className="grid" style={{ gridTemplateColumns: `repeat(${printCfg.perRow}, minmax(0, 1fr))`, gap: 12 }}>
-            {plays.map((p, idx) => (
-              <div key={p.id} className="border rounded-xl p-2 bg-white">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-sm font-semibold truncate">{p.name}</div>
-                  <div className="flex gap-1">
-                    <Button size="icon" variant="secondary" title="Move left" onClick={()=>reorder(idx, Math.max(0, idx-1))}><ArrowRight className="rotate-180" size={16}/></Button>
-                    <Button size="icon" variant="secondary" title="Move right" onClick={()=>reorder(idx, Math.min(plays.length-1, idx+1))}><ArrowRight size={16}/></Button>
+        <CardContent className="grid gap-6">
+          <div className="flex flex-col gap-6 lg:flex-row">
+            <div className="flex-1 space-y-4">
+              <div className="grid gap-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium text-slate-700">Card width (in)</div>
+                    <Input type="number" min={1} step={0.1} value={cardWidthIn} onChange={(e)=>updateWrist({ widthIn: Math.max(1, Number(e.target.value) || 1) })} />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium text-slate-700">Card height (in)</div>
+                    <Input type="number" min={1} step={0.1} value={cardHeightIn} onChange={(e)=>updateWrist({ heightIn: Math.max(1, Number(e.target.value) || 1) })} />
                   </div>
                 </div>
-                <PlayThumb play={p}/>
+                <div className="grid grid-cols-2 gap-3 items-end">
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium text-slate-700">Plays on card</div>
+                    <Input type="number" min={1} max={plays.length || 1} value={playLimit} onChange={handlePlayCountChange} />
+                  </div>
+                  <Button variant="secondary" onClick={autofillSelection} className="justify-center">Fill with first {playLimit} plays</Button>
+                </div>
               </div>
-            ))}
+
+              <div className="space-y-2">
+                <div className="text-sm font-semibold text-slate-700">Choose plays</div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {plays.map((p) => {
+                    const checked = wristCfg.selectedIds.includes(p.id);
+                    const disable = !checked && wristCfg.selectedIds.length >= playLimit;
+                    return (
+                      <label key={p.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition ${checked ? "border-slate-600 bg-slate-100" : "border-slate-200 bg-white hover:border-slate-300"}`}>
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-slate-300"
+                          checked={checked}
+                          disabled={disable}
+                          onChange={()=>togglePlaySelection(p.id)}
+                        />
+                        <span className="truncate">{p.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {missingPlays > 0 ? (
+                  <div className="text-xs font-medium text-amber-600">Select {missingPlays} more play{missingPlays === 1 ? "" : "s"} to fill the card.</div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="flex-1 space-y-3">
+              <div className="text-sm font-semibold text-slate-700">Preview (scaled)</div>
+              <div className="wrist-preview-container rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="wrist-preview-wrapper" style={previewWrapperStyle}>
+                  <div className="wrist-page flex h-full w-full items-center justify-center bg-white shadow-lg ring-1 ring-slate-200">
+                    <div
+                      className="wrist-card relative flex items-center justify-center rounded-2xl border-2 border-dashed border-slate-500 bg-white"
+                      style={{ width: `${cardWidthIn}in`, height: `${cardHeightIn}in`, padding: `${CARD_PADDING_IN}in` }}
+                    >
+                      {playsToRender.length ? (
+                        <div className="flex-1 flex items-center justify-center overflow-hidden">
+                          <div className="wrist-card-grid" style={gridStyle}>
+                            {playsToRender.map((p) => (
+                              <div
+                                key={p.id}
+                                className="wrist-cell overflow-hidden rounded-xl border border-slate-200 bg-white"
+                                style={{ width: `${cellWidthIn}in`, height: `${cellHeightIn}in`, minWidth: 0, minHeight: 0 }}
+                              >
+                                <PlayThumb play={p} className="h-full w-full" />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-4 text-center text-[11px] text-slate-500">
+                          Select plays to populate your wrist card.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="text-xs text-slate-500">
+                Print on {paperWidthIn.toFixed(2)}″ × {paperHeightIn.toFixed(2)}″ paper, cut along the dashed border for a {cardWidthIn.toFixed(2)}″ × {cardHeightIn.toFixed(2)}″ insert.
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -772,23 +878,26 @@ function BoardView({ plays, setPlays, printCfg, setPrintCfg }) {
   );
 }
 
-function PlayThumb({ play }) {
+function PlayThumb({ play, className }: any) {
   const widthUnits = Math.max(1, play.fieldWidthYards ?? DEFAULT_FIELD_WIDTH);
   const divisions = Math.max(1, Math.round(play.fieldLengthYards ?? DEFAULT_DIVISIONS));
   const size = computeFieldSize(widthUnits, divisions);
+  const svgClass = className ? `${className} bg-white rounded-lg` : "w-full aspect-[3/4] bg-white rounded-lg";
   return (
-    <svg viewBox={`0 0 ${size.w} ${size.h}`} className="w-full aspect-[3/4] bg-white rounded-lg">
+  <svg viewBox={`0 0 ${size.w} ${size.h}`} className={svgClass} width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
       {yardLines(size.w, size.h, play.lineOfScrimmage ?? null, divisions)}
       {play.elements.map((elt) => {
-        if (elt.type === ELT.PLAYER)
+        if (elt.type === ELT.PLAYER) {
+          const r = elt.r ?? 25;
           return (
             <g key={elt.id}>
-              <circle cx={elt.x} cy={elt.y} r={12} fill={elt.color || "#111827"} />
-              <text x={elt.x} y={elt.y + 4} textAnchor="middle" fontSize={10} fill="#fff" fontWeight={700}>
+              <circle cx={elt.x} cy={elt.y} r={r} fill={elt.color || "#111827"} />
+              <text x={elt.x} y={elt.y + Math.min(6, Math.round(r / 2))} textAnchor="middle" fontSize={Math.max(8, Math.round(r / 2.2))} fill="#fff" fontWeight={700}>
                 {elt.label || ""}
               </text>
             </g>
           );
+        }
         if (elt.type === ELT.BALL)
           return (
             <g key={elt.id}>
@@ -893,14 +1002,37 @@ export default function App() {
   const [strokeColor, setStrokeColor] = useState("#111827");
   const [fillColor, setFillColor] = useState("#111827");
   const [thickness, setThickness] = useState(3);
-  const [playerSize, setPlayerSize] = useState(16);
+  const [playerSize, setPlayerSize] = useState(25);
   const palette = useMemo(defaultPalette, []);
   const [playersLocked, setPlayersLocked] = useState(false);
 
   const [printCfg, setPrintCfg] = useState({ paper: "letter", perRow: 3, marginIn: 0.5, showTitles: true, customW: 8.5, customH: 11 });
+  const [wristCfg, setWristCfg] = useState({ widthIn: 3, heightIn: 4, playCount: 4, selectedIds: [] as string[] });
 
   // persist
   useEffect(() => saveToStorage(plays), [plays]);
+
+  // NOTE: previous normalization that overwrote existing player sizes was removed so
+  // older plays keep their original radii. New players are created with r = playerSize.
+
+  useEffect(() => {
+    setWristCfg((cfg) => {
+      const availableIds = plays.map((p) => p.id);
+      const filtered = cfg.selectedIds.filter((id) => availableIds.includes(id));
+      let nextSelected = filtered;
+      if (nextSelected.length < cfg.playCount) {
+        const needed = cfg.playCount - nextSelected.length;
+        const extras = availableIds.filter((id) => !nextSelected.includes(id)).slice(0, needed);
+        nextSelected = [...nextSelected, ...extras];
+      } else if (nextSelected.length > cfg.playCount) {
+        nextSelected = nextSelected.slice(0, cfg.playCount);
+      }
+      if (nextSelected.length !== cfg.selectedIds.length || nextSelected.some((id, idx) => id !== cfg.selectedIds[idx])) {
+        return { ...cfg, selectedIds: nextSelected };
+      }
+      return cfg;
+    });
+  }, [plays, wristCfg.playCount]);
 
   // Undo / Redo history (stores snapshots of plays + active selection)
   const snapshot = (playsState = plays, activeState = activeId) =>
@@ -1101,10 +1233,22 @@ export default function App() {
     img.src = url;
   }
 
+  function printWristSheet() {
+    const sheet = document.querySelector(".wrist-page") as HTMLElement | null;
+    if (!sheet) return;
+    const popup = window.open("", "_blank", "width=900,height=700");
+    if (!popup) return;
+    const styles = printStyles(printCfg, wristCfg);
+    popup.document.write(`<!DOCTYPE html><html><head><title>Wrist Coach Sheet</title><style>${styles}</style></head><body class="wrist-print-body">${sheet.outerHTML}</body></html>`);
+    popup.document.close();
+    popup.focus();
+    popup.print();
+  }
+
   return (
     <TooltipProvider>
       <div className="p-4 md:p-6 bg-slate-50 min-h-screen">
-        <style>{printStyles(printCfg)}</style>
+  <style>{printStyles(printCfg, wristCfg)}</style>
         <div className="max-w-7xl mx-auto grid gap-6">
           <div className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white/80 shadow-xl backdrop-blur-sm">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_#bae6fd,_transparent_55%)]" />
@@ -1223,7 +1367,6 @@ export default function App() {
                   thickness={thickness}
                   setThickness={setThickness}
                   playerSize={playerSize}
-                  setPlayerSize={setPlayerSize}
                   palette={palette}
                   lineOfScrimmage={active?.lineOfScrimmage ?? null}
                   setLineOfScrimmage={setActiveLOS}
@@ -1268,27 +1411,7 @@ export default function App() {
             </TabsContent>
 
             <TabsContent value="board" className="grid gap-4">
-              <BoardView plays={plays} setPlays={setPlays} printCfg={printCfg} setPrintCfg={setPrintCfg} />
-              <div className="print-board">
-                {printCfg.showTitles ? (
-                  <div className="print-grid with-titles">
-                    {plays.map((p) => (
-                      <div key={p.id} className="print-card">
-                        <div className="title">{p.name}</div>
-                        <PlayThumb play={p} />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="print-grid">
-                    {plays.map((p) => (
-                      <div key={p.id} className="print-card">
-                        <PlayThumb play={p} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <BoardView plays={plays} setPlays={setPlays} printCfg={printCfg} setPrintCfg={setPrintCfg} wristCfg={wristCfg} setWristCfg={setWristCfg} onPrintWrist={printWristSheet} />
             </TabsContent>
           </Tabs>
         </div>
@@ -1373,17 +1496,31 @@ function SelectedInspector({ play, selection, onChange }) {
 // ------------------------------------------------------------
 // Print CSS
 // ------------------------------------------------------------
-function printStyles(cfg) {
+function printStyles(cfg, wristCfg) {
   // Determine @page size
   const size = cfg.paper === "letter" ? "8.5in 11in" : cfg.paper === "a4" ? "210mm 297mm" : `${cfg.customW}in ${cfg.customH}in`;
   const margin = `${cfg.marginIn}in`;
+  const paper = getPaperSizeIn(cfg);
+  const cardWidth = Math.max(1, wristCfg?.widthIn ?? 3);
+  const cardHeight = Math.max(1, wristCfg?.heightIn ?? 4);
   return `
+  :root {
+    --wrist-card-width: ${cardWidth}in;
+    --wrist-card-height: ${cardHeight}in;
+  }
   @page { size: ${size}; margin: ${margin}; }
+  .wrist-preview-wrapper { display: inline-block; transform-origin: top left; }
+  .wrist-page { width: ${paper.widthIn}in; height: ${paper.heightIn}in; margin: 0 auto; position: relative; display: flex; align-items: center; justify-content: center; }
+  .wrist-card { width: var(--wrist-card-width); height: var(--wrist-card-height); box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
+  body.wrist-print-body { margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #ffffff; }
   @media print {
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .print-grid { display: grid; grid-template-columns: repeat(${cfg.perRow}, 1fr); gap: 12px; }
     .print-grid.with-titles .title { font-weight: 600; margin-bottom: 6px; font-size: 12pt; }
     .print-card { break-inside: avoid; page-break-inside: avoid; }
+    .wrist-preview-wrapper { transform: none !important; }
+    .wrist-preview-container { border: none !important; background: transparent !important; box-shadow: none !important; padding: 0 !important; }
+    .wrist-card { border-style: dashed !important; border-width: 3px !important; border-color: #111827 !important; background: #ffffff !important; }
   }
   `;
 }

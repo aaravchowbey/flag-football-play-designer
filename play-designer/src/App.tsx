@@ -353,8 +353,7 @@ export default function App() {
             <div>
               <h1 className="text-3xl font-bold text-slate-900 md:text-4xl">Flag Football Play Designer</h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-600 md:text-base">
-                Map routes, zone drops, and timing adjustments on a responsive SVG field. Plays persist locally and export cleanly for
-                wrist cards or paper handouts.
+                Create plays and print wrist cards easily. You can also save plays you have worked on and reimport them later.
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
@@ -399,7 +398,7 @@ export default function App() {
               Designer
             </TabsTrigger>
             <TabsTrigger value="board" className="rounded-full px-4 py-2 text-sm data-[state=active]:bg-slate-900 data-[state=active]:text-white">
-              Print & Wrist
+              Print wrist insert
             </TabsTrigger>
           </TabsList>
 
@@ -503,7 +502,6 @@ export default function App() {
                       max={60}
                       step={1}
                     />
-                    <p className="text-xs text-slate-500">Controls how much horizontal yardage is visible. Wider fields leave more space for route breaks near the sidelines.</p>
                   </div>
 
                   <div className="space-y-2">
@@ -530,7 +528,6 @@ export default function App() {
                       max={60}
                       step={1}
                     />
-                    <p className="text-xs text-slate-500">Adjust the number of vertical yard markers. Shorter fields are handy for red-zone installs.</p>
                   </div>
 
                   <div className="space-y-2">
@@ -556,7 +553,7 @@ export default function App() {
                         className="w-24"
                       />
                     </div>
-                    <p className="text-xs text-slate-500">Leave blank to hide the LOS stripe. Values automatically clamp to the configured field length.</p>
+                    <p className="text-xs text-slate-500">Leave blank to hide the LOS stripe.</p>
                   </div>
                 </CardContent>
               </Card>

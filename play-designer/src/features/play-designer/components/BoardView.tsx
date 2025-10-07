@@ -105,9 +105,6 @@ export function BoardView({ plays, printConfig, wristConfig, onUpdateWristConfig
                       onChange={handlePlayCountChange}
                     />
                   </div>
-                  <Button variant="secondary" onClick={autofillSelection} className="justify-center">
-                    Fill with first {wristConfig.playCount} plays
-                  </Button>
                 </div>
               </div>
 
